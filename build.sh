@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/local/bin/bash
 set -e -x
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -11,20 +11,20 @@ set -e -x
 __OPT_TARGET_PREFIX=riscv-unknown-elf-
 __OPT_TARGET_ARCH=riscv-unknown-elf
 
-__OPT_TARGET_MARCH=rv64gc
-__OPT_TARGET_MABI=lp64d
-__OPT_TARGET_MARCH_FULL=rv64gc
+__OPT_TARGET_MARCH=rv32ec
+__OPT_TARGET_MABI=ilp32e
+__OPT_TARGET_MARCH_FULL=rv32ec
 
 __OPT_TARGET_ENABLE_RISCV32E=yes
-__OPT_TARGET_ENABLE_RISCV32I=yes
-__OPT_TARGET_ENABLE_RISCV64I=yes
+__OPT_TARGET_ENABLE_RISCV32I=no
+__OPT_TARGET_ENABLE_RISCV64I=bo
 __OPT_TARGET_ENABLE_RISCV128I=no
 __OPT_TARGET_ENABLE_SINGLE_FLOAT=yes
 __OPT_TARGET_ENABLE_DOUBLE_FLOAT=yes
 __OPT_TARGET_ENABLE_QUAD_FLOAT=no
 __OPT_TARGET_ENABLE_ADDITIONAL_ABIS=no
 
-__OPT_BUILD_MULTICORE=-j$(nproc)
+__OPT_BUILD_MULTICORE=-j1
 __OPT_BUILD_HACKY_MULTICORE=yes
 
 __VERSION_BINUTILS=binutils-2_37
@@ -299,16 +299,17 @@ cd $__BUILD_DIR
 if [ ! -f .built-binutils ]; then
   rm -rf build-binutils || true
   mkdir build-binutils && cd build-binutils
-  $__SRC_DIR/src-binutils/configure \
+  env LDFLAGS=-L/usr/local/lib CFLAGS=-I/usr/local/include $__SRC_DIR/src-binutils/configure \
     --target=${__OPT_TARGET_ARCH} \
     --prefix=${__OPT_TARGET_PATH} \
     --with-arch=${__OPT_TARGET_MARCH_FULL} \
     --program-prefix=${__OPT_TARGET_PREFIX} \
+	--with-gpm=/usr/local --with-mpfr=/usr/local \
     --enable-lto --disable-nls --disable-wchar_t \
     --enable-initfini-array --without-gdb
 
-  make all ${__OPT_BUILD_MULTICORE}
-  make install ${__OPT_BUILD_MULTICORE}
+  gmake all ${__OPT_BUILD_MULTICORE}
+  gmake install ${__OPT_BUILD_MULTICORE}
 fi
 touch $__BUILD_DIR/.built-binutils
 
@@ -329,7 +330,7 @@ if [ ! -f .built-gcc ]; then
 
   rm -rf build-gcc || true
   mkdir build-gcc && cd build-gcc
-  $__SRC_DIR/src-gcc/configure \
+  env LDFLAGS=-L/usr/local/lib CFLAGS=-I/usr/local/include $__SRC_DIR/src-gcc/configure \
     --target=${__OPT_TARGET_ARCH} \
     --prefix=${__OPT_TARGET_PATH} \
     --program-prefix=${__OPT_TARGET_PREFIX} \
@@ -338,10 +339,11 @@ if [ ! -f .built-gcc ]; then
     --enable-lto --enable-multilib --enable-initfini-array \
     --disable-nls --disable-wchar_t --disable-threads --disable-libstdcxx \
     --disable-shared --disable-libssp \
+	--with-gpm=/usr/local --with-mpfr=/usr/local \
     --with-system-zlib --with-gnu-as --with-gnu-ld
 
-  make all-gcc ${__OPT_BUILD_MULTICORE}
-  make install-gcc ${__OPT_BUILD_MULTICORE}
+  gmake all-gcc ${__OPT_BUILD_MULTICORE}
+  gmake install-gcc ${__OPT_BUILD_MULTICORE}
 fi
 touch $__BUILD_DIR/.built-gcc
 
@@ -520,11 +522,12 @@ cd $__BUILD_DIR
 if [ ! -f .built-newlib ]; then
   rm -rf build-newlib || true
   mkdir build-newlib && cd build-newlib
-  $__SRC_DIR/src-newlib/configure \
+  env LDFLAGS=-L/usr/local/lib CFLAGS=-I/usr/local/include $__SRC_DIR/src-newlib/configure \
     --target=${__OPT_TARGET_ARCH} \
     --with-arch=${__OPT_TARGET_MARCH} --with-abi=${__OPT_TARGET_MABI} \
     --prefix=${__OPT_TARGET_PATH} \
     --enable-multilib \
+	--with-gpm=/usr/local --with-mpfr=/usr/local \
     --disable-newlib-supplied-syscalls --enable-newlib-nano-malloc \
     --enable-newlib-global-atexit --enable-newlib-register-fini \
     --disable-newlib-multithread
@@ -586,8 +589,8 @@ if [ ! -f .built-newlib ]; then
 EOF
   fi
 
-  make all ${__OPT_BUILD_MULTICORE}
-  make install ${__OPT_BUILD_MULTICORE}
+  gmake all ${__OPT_BUILD_MULTICORE}
+  gmake install ${__OPT_BUILD_MULTICORE}
 fi
 touch $__BUILD_DIR/.built-newlib
 
@@ -615,10 +618,11 @@ if [ ! -f .built-gcc-stage2 ]; then
     --enable-lto --enable-multilib --enable-initfini-array \
     --disable-nls --disable-wchar_t --disable-threads --disable-libstdcxx \
     --disable-shared --disable-libssp \
+	--with-gpm=/usr/local --with-mpfr=/usr/local \
     --with-system-zlib --with-gnu-as --with-gnu-ld --enable-gold
 
-  make all ${__OPT_BUILD_MULTICORE}
-  make install ${__OPT_BUILD_MULTICORE}
+  gmake all ${__OPT_BUILD_MULTICORE}
+  gmake install ${__OPT_BUILD_MULTICORE}
 fi
 touch $__BUILD_DIR/.built-gcc-stage2
 
@@ -652,51 +656,51 @@ function build_uclibcpp() {
     MAKE_PARAMS+=' HOSTCFLAGS="-march=$1 -mabi=$2"'
     MAKE_PARAMS+=' HOSTCXXFLAGS="-march=$1 -mabi=$2"'
   fi
-  alias make="$MAKE_PARAMS make"
+  alias gmake="$MAKE_PARAMS make"
 
-  make distclean
-  make defconfig
+  gmake distclean
+  gmake defconfig
 
-  sed -i -E 's|.*UCLIBCXX_HAS_FLOATS.*|UCLIBCXX_HAS_FLOATS=y|' .config
-  sed -i -E 's|.*UCLIBCXX_HAS_LONG_DOUBLE.*|UCLIBCXX_HAS_LONG_DOUBLE=n|' .config
-  sed -i -E 's|.*UCLIBCXX_HAS_TLS.*|UCLIBCXX_HAS_TLS=n|' .config
+  ssed -i -R 's|.*UCLIBCXX_HAS_FLOATS.*|UCLIBCXX_HAS_FLOATS=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_HAS_LONG_DOUBLE.*|UCLIBCXX_HAS_LONG_DOUBLE=n|' .config
+  ssed -i -R 's|.*UCLIBCXX_HAS_TLS.*|UCLIBCXX_HAS_TLS=n|' .config
 
-  sed -i -E 's|.*UCLIBCXX_HAS_LFS.*|UCLIBCXX_HAS_LFS=y|' .config
-  sed -i -E 's|.*UCLIBCXX_SUPPORT_CDIR.*|UCLIBCXX_SUPPORT_CDIR=y|' .config
-  sed -i -E 's|.*UCLIBCXX_SUPPORT_CIN.*|UCLIBCXX_SUPPORT_CIN=y|' .config
-  sed -i -E 's|.*UCLIBCXX_SUPPORT_COUT.*|UCLIBCXX_SUPPORT_COUT=y|' .config
-  sed -i -E 's|.*UCLIBCXX_SUPPORT_CERR.*|UCLIBCXX_SUPPORT_CERR=y|' .config
-  sed -i -E 's|.*UCLIBCXX_SUPPORT_CLOG.*|UCLIBCXX_SUPPORT_CLOG=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_HAS_LFS.*|UCLIBCXX_HAS_LFS=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_SUPPORT_CDIR.*|UCLIBCXX_SUPPORT_CDIR=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_SUPPORT_CIN.*|UCLIBCXX_SUPPORT_CIN=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_SUPPORT_COUT.*|UCLIBCXX_SUPPORT_COUT=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_SUPPORT_CERR.*|UCLIBCXX_SUPPORT_CERR=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_SUPPORT_CLOG.*|UCLIBCXX_SUPPORT_CLOG=y|' .config
 
-  sed -i -E 's|.*UCLIBCXX_CODE_EXPANSION.*|UCLIBCXX_CODE_EXPANSION=n|' .config
-  sed -i -E 's|.*UCLIBCXX_EXPAND_(.*)=.*|UCLIBCXX_EXPAND_\1=n|' .config
+  ssed -i -R 's|.*UCLIBCXX_CODE_EXPANSION.*|UCLIBCXX_CODE_EXPANSION=n|' .config
+  ssed -i -R 's|.*UCLIBCXX_EXPAND_(.*)=.*|UCLIBCXX_EXPAND_\1=n|' .config
 
-  sed -i 's|.*UCLIBCXX_RUNTIME_PREFIX.*|UCLIBCXX_RUNTIME_PREFIX="'${__OPT_TARGET_PATH}'/'${__OPT_TARGET_ARCH}'"|' .config
+  sed -i.bak 's|.*UCLIBCXX_RUNTIME_PREFIX.*|UCLIBCXX_RUNTIME_PREFIX="'${__OPT_TARGET_PATH}'/'${__OPT_TARGET_ARCH}'"|' .config
   if [ -n "$1" ] && [ -n "$2" ]; then
-    sed -i -E 's|.*UCLIBCXX_RUNTIME_LIB_SUBDIR.*|UCLIBCXX_RUNTIME_LIB_SUBDIR="/lib/'$march'/'$mabi'"|' .config;
+    ssed -i -R 's|.*UCLIBCXX_RUNTIME_LIB_SUBDIR.*|UCLIBCXX_RUNTIME_LIB_SUBDIR="/lib/'$march'/'$mabi'"|' .config;
   else
-    sed -i -E 's|.*UCLIBCXX_RUNTIME_LIB_SUBDIR.*|UCLIBCXX_RUNTIME_LIB_SUBDIR="/lib"|' .config;
+    ssed -i -R 's|.*UCLIBCXX_RUNTIME_LIB_SUBDIR.*|UCLIBCXX_RUNTIME_LIB_SUBDIR="/lib"|' .config;
   fi
 
-  sed -i -E 's|.*UCLIBCXX_EXCEPTION_SUPPORT.*|UCLIBCXX_EXCEPTION_SUPPORT=n|' .config
-  sed -i -E 's|.*IMPORT_LIBGCC_EH.*|IMPORT_LIBGCC_EH=n|' .config
-  sed -i -E 's|.*BUILD_STATIC_LIB.*|BUILD_STATIC_LIB=y|' .config
-  sed -i -E 's|.*BUILD_ONLY_STATIC_LIB.*|BUILD_ONLY_STATIC_LIB=y|' .config
-  sed -i -E 's|.*DODEBUG.*|DODEBUG=y|' .config
+  ssed -i -R 's|.*UCLIBCXX_EXCEPTION_SUPPORT.*|UCLIBCXX_EXCEPTION_SUPPORT=n|' .config
+  ssed -i -R 's|.*IMPORT_LIBGCC_EH.*|IMPORT_LIBGCC_EH=n|' .config
+  ssed -i -R 's|.*BUILD_STATIC_LIB.*|BUILD_STATIC_LIB=y|' .config
+  ssed -i -R 's|.*BUILD_ONLY_STATIC_LIB.*|BUILD_ONLY_STATIC_LIB=y|' .config
+  ssed -i -R 's|.*DODEBUG.*|DODEBUG=y|' .config
 
   # Temporary fixes
-  sed -i -E 's|typedef basic_istream<char>(.+?)istream;|typedef basic_istream<char, char_traits<char> > istream;|' include/istream
-  sed -i -E 's|typedef basic_istream<wchar_t>(.+?)wistream;|typedef basic_istream<wchar_t, char_traits<wchar_t> > wistream;|' include/istream
-  sed -i -E 's|typedef basic_ostream<char>(.+?)ostream;|typedef basic_ostream<char, char_traits<char> > ostream;|' include/ostream
-  sed -i -E 's|typedef basic_ostream<wchar_t>(.+?)wostream;|typedef basic_ostream<wchar_t, char_traits<wchar_t> > wostream;|' include/ostream
-  sed -i -E 's|typedef basic_filebuf<char>(.+?)filebuf;|typedef basic_filebuf<char, char_traits<char> > filebuf;|' include/fstream
-  sed -i -E 's|typedef basic_filebuf<wchar_t>(.+?)wfilebuf;|typedef basic_filebuf<wchar_t, char_traits<wchar_t> > wfilebuf;|' include/fstream
-  sed -i -E 's|template <class charT,class traits = char_traits<charT> >|template <class charT,class traits>|' include/istream
-  sed -i -E 's|template <class charT,class traits = char_traits<charT> >|template <class charT,class traits>|' include/ostream
+  ssed -i -R 's|typedef basic_istream<char>(.+?)istream;|typedef basic_istream<char, char_traits<char> > istream;|' include/istream
+  ssed -i -R 's|typedef basic_istream<wchar_t>(.+?)wistream;|typedef basic_istream<wchar_t, char_traits<wchar_t> > wistream;|' include/istream
+  ssed -i -R 's|typedef basic_ostream<char>(.+?)ostream;|typedef basic_ostream<char, char_traits<char> > ostream;|' include/ostream
+  ssed -i -R 's|typedef basic_ostream<wchar_t>(.+?)wostream;|typedef basic_ostream<wchar_t, char_traits<wchar_t> > wostream;|' include/ostream
+  ssed -i -R 's|typedef basic_filebuf<char>(.+?)filebuf;|typedef basic_filebuf<char, char_traits<char> > filebuf;|' include/fstream
+  ssed -i -R 's|typedef basic_filebuf<wchar_t>(.+?)wfilebuf;|typedef basic_filebuf<wchar_t, char_traits<wchar_t> > wfilebuf;|' include/fstream
+  ssed -i -R 's|template <class charT,class traits = char_traits<charT> >|template <class charT,class traits>|' include/istream
+  ssed -i -R 's|template <class charT,class traits = char_traits<charT> >|template <class charT,class traits>|' include/ostream
 
-  make all
-  make install
-  make distclean
+  gmake all
+  gmake install
+  gmake distclean
 }
 
 cd $__BUILD_DIR
